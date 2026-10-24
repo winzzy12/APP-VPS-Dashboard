@@ -1,4 +1,5 @@
 # VPS Dashboard
+![Alt Text](./image/dashboard.png)
 
 Login-protected dashboard for managing a VPS fleet. Standalone app on
 **http://127.0.0.1:8081** 
