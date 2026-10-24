@@ -188,6 +188,12 @@ async def terminal(ws: WebSocket, server_id: int) -> None:
             except ValueError:
                 obj = None
             if isinstance(obj, dict):
+                if obj.get("type") == "ping":
+                    try:
+                        await ws.send_json({"type": "pong"})
+                    except Exception:
+                        pass
+                    continue
                 if obj.get("type") == "resize":
                     try:
                         cols = max(20, min(int(obj.get("cols", 80)), 500))
@@ -198,6 +204,7 @@ async def terminal(ws: WebSocket, server_id: int) -> None:
                     continue
                 if obj.get("type") == "input":
                     data = str(obj.get("data", ""))
+                continue  # unknown control message — never forward into the shell
             if data:
                 await asyncio.to_thread(channel.sendall, data)
 

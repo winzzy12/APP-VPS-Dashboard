@@ -54,52 +54,112 @@ export default function SSHTerminal({
       /* container not laid out yet */
     }
 
+    // The WebSocket can die from outside our control (phone screen lock /
+    // tab freeze, Wi-Fi or VPN switch, dashboard restarts). Auto-reconnect
+    // instead of showing a dead terminal; only an explicit close ends it.
+    let disposed = false // component unmounted (user closed the terminal)
+    let ws: WebSocket | null = null
     let ready = false
-    let closed = false
-    const ws = new WebSocket(
-      `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/servers/${server.id}/terminal`,
-    )
-    let resizeTimer: number | undefined
+    let attempts = 0
+    let reconnectTimer: number | undefined
+    let pingTimer: number | undefined
+    let pongTimer: number | undefined
+    let roTimer: number | undefined
+
+    const clearTimers = () => {
+      window.clearInterval(pingTimer)
+      window.clearTimeout(pongTimer)
+      window.clearTimeout(reconnectTimer)
+    }
 
     const sendResize = () => {
-      if (ws.readyState === WebSocket.OPEN && ready) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
       }
     }
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'auth', token: getToken() }))
+    const startHeartbeat = () => {
+      window.clearInterval(pingTimer)
+      window.clearTimeout(pongTimer)
+      pingTimer = window.setInterval(() => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }))
+          // No pong = half-open TCP (sleep, network switch) — force close so
+          // the reconnect path kicks in instead of a silently dead terminal.
+          window.clearTimeout(pongTimer)
+          pongTimer = window.setTimeout(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) ws.close()
+          }, 10000)
+        }
+      }, 25000)
     }
 
-    ws.onmessage = (ev: MessageEvent) => {
-      if (!ready) {
+    const connect = () => {
+      if (disposed) return
+      let alive = false // ready handshake completed on this socket
+      let fatal = false // SSH-level refusal (bad token/credentials) — no retry
+      const sock = new WebSocket(
+        `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/servers/${server.id}/terminal`,
+      )
+      ws = sock
+
+      sock.onopen = () => {
+        sock.send(JSON.stringify({ type: 'auth', token: getToken() }))
+      }
+
+      sock.onmessage = (ev: MessageEvent) => {
+        let parsed: { type?: string; message?: string } | null = null
         try {
-          const obj = JSON.parse(ev.data)
-          if (obj.type === 'ready') {
+          parsed = JSON.parse(ev.data)
+        } catch {
+          /* raw PTY output */
+        }
+        if (parsed?.type === 'pong') {
+          window.clearTimeout(pongTimer)
+          return
+        }
+        if (!alive) {
+          if (parsed?.type === 'ready') {
+            alive = true
             ready = true
+            attempts = 0
             sendResize()
             term.focus()
+            startHeartbeat()
             return
           }
-          if (obj.type === 'error') {
-            term.write(`\r\n\x1b[31m${obj.message ?? 'SSH error'}\x1b[0m\r\n`)
+          if (parsed?.type === 'error') {
+            fatal = true
+            term.write(`\r\n\x1b[31m${parsed.message ?? 'SSH error'}\x1b[0m\r\n`)
             return
           }
-        } catch {
-          /* not JSON before ready — treat as raw output */
         }
+        term.write(ev.data)
       }
-      term.write(ev.data)
+
+      sock.onclose = () => {
+        if (ws === sock) {
+          ws = null
+          ready = false
+        }
+        window.clearInterval(pingTimer)
+        window.clearTimeout(pongTimer)
+        if (disposed || fatal) return
+        attempts += 1
+        const delay = Math.min(1000 * 2 ** (attempts - 1), 10000)
+        if (alive) {
+          term.write(
+            `\r\n\x1b[90m— connection lost — reconnecting in ${Math.round(delay / 1000)}s —\x1b[0m\r\n`,
+          )
+        }
+        reconnectTimer = window.setTimeout(connect, delay)
+      }
     }
 
-    ws.onclose = () => {
-      if (!closed) {
-        term.write('\r\n\x1b[90m— session closed —\x1b[0m\r\n')
-      }
-    }
+    connect()
 
     term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN && ready) {
+      if (ws && ws.readyState === WebSocket.OPEN && ready) {
         ws.send(JSON.stringify({ type: 'input', data }))
       }
     })
@@ -107,8 +167,8 @@ export default function SSHTerminal({
     term.onResize(() => sendResize())
 
     const ro = new ResizeObserver(() => {
-      window.clearTimeout(resizeTimer)
-      resizeTimer = window.setTimeout(() => {
+      window.clearTimeout(roTimer)
+      roTimer = window.setTimeout(() => {
         try {
           fit.fit()
         } catch {
@@ -118,9 +178,10 @@ export default function SSHTerminal({
     })
     ro.observe(container)
 
-    // On phones the keyboard shrinks only the VISUAL viewport (layout stays put),
-    // so a plain ResizeObserver never fires and the bottom of the terminal hides
-    // behind the keyboard. Resize the modal to the visual viewport instead.
+    // On phones the keyboard shrinks only the VISUAL viewport (layout stays
+    // put), so a plain ResizeObserver never fires and the bottom of the
+    // terminal hides behind the keyboard. Resize the modal to the visual
+    // viewport instead.
     const modal = modalRef.current
     const vv = window.visualViewport
     const onVV = () => {
@@ -129,8 +190,8 @@ export default function SSHTerminal({
         ? Math.max(240, Math.min(window.innerHeight * 0.86, vv.height - 24))
         : Math.min(window.innerHeight * 0.86, window.innerHeight - 40)
       modal.style.height = `${h}px`
-      window.clearTimeout(resizeTimer)
-      resizeTimer = window.setTimeout(() => {
+      window.clearTimeout(roTimer)
+      roTimer = window.setTimeout(() => {
         try {
           fit.fit()
         } catch {
@@ -145,15 +206,16 @@ export default function SSHTerminal({
     onVV()
 
     return () => {
-      closed = true
+      disposed = true
+      clearTimers()
       ro.disconnect()
       if (vv) {
         vv.removeEventListener('resize', onVV)
         vv.removeEventListener('scroll', onVV)
       }
-      window.clearTimeout(resizeTimer)
+      window.clearTimeout(roTimer)
       try {
-        ws.close()
+        ws?.close()
       } catch {
         /* noop */
       }
