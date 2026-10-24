@@ -45,6 +45,16 @@ const EMPTY_FORM = {
   notes: '',
 }
 
+function fmtUptime(seconds: number | null): string {
+  if (seconds == null) return '—'
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+
 function relTime(iso: string | null): string {
   if (!iso) return 'never'
   const t = new Date(iso.replace(' ', 'T') + 'Z').getTime()
@@ -373,7 +383,7 @@ export default function Dashboard({
                   <th>CPU</th>
                   <th>RAM</th>
                   <th>Status</th>
-                  <th>Last checked</th>
+                  <th>Uptime</th>
                   <th className="th-actions">Actions</th>
                 </tr>
               </thead>
@@ -402,7 +412,15 @@ export default function Dashboard({
                       <StatusPill server={s} />
                     </td>
                     <td className="muted">
-                      <Clock size={13} className="inline-icon" /> {relTime(s.last_checked)}
+                      <span
+                        title={
+                          s.last_checked
+                            ? `Last checked ${relTime(s.last_checked)}`
+                            : 'Never checked'
+                        }
+                      >
+                        <Clock size={13} className="inline-icon" /> {fmtUptime(s.uptime_seconds)}
+                      </span>
                     </td>
                     <td>
                       <div className="row-actions">
