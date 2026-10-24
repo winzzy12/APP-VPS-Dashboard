@@ -76,7 +76,6 @@ function StatusPill({ server }: { server: Server }) {
       <span className="pill online">
         <span className="dot" />
         Online
-        {server.latency_ms != null && <em>{server.latency_ms} ms</em>}
       </span>
     )
   }
