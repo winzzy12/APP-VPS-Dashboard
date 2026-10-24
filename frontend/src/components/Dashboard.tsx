@@ -122,7 +122,8 @@ export default function Dashboard({
   const [editing, setEditing] = useState<Editing | null>(null)
   const [deleting, setDeleting] = useState<Server | null>(null)
   const [detailId, setDetailId] = useState<number | null>(null)
-  const [termId, setTermId] = useState<number | null>(null)
+  const [termIds, setTermIds] = useState<number[]>([])
+  const [activeTermId, setActiveTermId] = useState<number | null>(null)
   const [rebooting, setRebooting] = useState<Server | null>(null)
   const [rebootBusy, setRebootBusy] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -205,7 +206,17 @@ export default function Dashboard({
     setServers((list) => list.map((s) => (s.id === updated.id ? updated : s)))
   }, [])
 
-  const closeTerm = useCallback(() => setTermId(null), [])
+  const openTerm = useCallback((id: number) => {
+    setTermIds((list) => (list.includes(id) ? list : [...list, id]))
+    setActiveTermId(id)
+  }, [])
+
+  const minimizeTerm = useCallback(() => setActiveTermId(null), [])
+
+  const closeTerm = useCallback((id: number) => {
+    setTermIds((list) => list.filter((x) => x !== id))
+    setActiveTermId((cur) => (cur === id ? null : cur))
+  }, [])
 
   const togglePin = useCallback(
     async (server: Server) => {
@@ -247,7 +258,7 @@ export default function Dashboard({
       <button
         className="icon-btn"
         title="SSH terminal"
-        onClick={() => setTermId(s.id)}
+        onClick={() => openTerm(s.id)}
       >
         <TerminalIcon size={16} />
       </button>
@@ -334,8 +345,6 @@ export default function Dashboard({
 
   const detailServer =
     detailId != null ? (servers.find((s) => s.id === detailId) ?? null) : null
-  const termServer =
-    termId != null ? (servers.find((s) => s.id === termId) ?? null) : null
 
   return (
     <div className="shell">
@@ -627,7 +636,7 @@ export default function Dashboard({
           server={detailServer}
           onClose={() => setDetailId(null)}
           onUpdated={handleDetailUpdate}
-          onOpenTerminal={() => setTermId(detailServer.id)}
+          onOpenTerminal={() => openTerm(detailServer.id)}
           onRebootRequest={() => {
             setDetailId(null)
             setRebooting(detailServer)
@@ -636,7 +645,46 @@ export default function Dashboard({
         />
       )}
 
-      {termServer && <SSHTerminal server={termServer} onClose={closeTerm} />}
+      {termIds.map((id) => {
+        const srv = servers.find((s) => s.id === id)
+        if (!srv) return null
+        return (
+          <div key={id} style={activeTermId === id ? undefined : { display: 'none' }}>
+            <SSHTerminal
+              server={srv}
+              onClose={() => closeTerm(id)}
+              onMinimize={minimizeTerm}
+            />
+          </div>
+        )
+      })}
+
+      {termIds.length > 0 && activeTermId === null && (
+        <div className="term-bar">
+          {termIds.map((id) => {
+            const srv = servers.find((s) => s.id === id)
+            if (!srv) return null
+            return (
+              <div key={id} className="term-chip">
+                <button
+                  className="term-chip-main"
+                  onClick={() => setActiveTermId(id)}
+                  title="Restore terminal"
+                >
+                  <TerminalIcon size={13} /> {srv.name}
+                </button>
+                <button
+                  className="term-chip-x"
+                  onClick={() => closeTerm(id)}
+                  title="End session"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <div className="toasts">
         {toasts.map((t) => (

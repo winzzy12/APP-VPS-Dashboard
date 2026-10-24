@@ -1460,11 +1460,71 @@ textarea {
     height: 86dvh;
   }
 
+  .term-bar {
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
   .toasts {
     left: 12px;
     right: 12px;
     bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
+}
+
+/* ================= minimized terminal bar ================= */
+.term-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 14px;
+  z-index: 45;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100vw - 24px);
+  animation: rise 0.2s ease;
+}
+
+.term-chip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px 4px 12px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.term-chip-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.term-chip-main svg {
+  color: var(--accent-2);
+}
+
+.term-chip-x {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: var(--muted);
+}
+
+.term-chip-x:hover {
+  color: var(--red);
+  background: rgba(248, 113, 113, 0.12);
 }
 
 @media (max-width: 480px) {

@@ -78,6 +78,12 @@ export const X = ({ size = 20, className }: IconProps) => (
   </svg>
 )
 
+export const Minus = ({ size = 20, className }: IconProps) => (
+  <svg {...svgProps(size, className)}>
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+)
+
 export const Eye = ({ size = 20, className }: IconProps) => (
   <svg {...svgProps(size, className)}>
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />

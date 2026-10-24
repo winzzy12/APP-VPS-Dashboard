@@ -4,14 +4,16 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { getToken } from '../api'
 import type { Server } from '../types'
-import { Terminal as TerminalIcon, X } from './Icons'
+import { Terminal as TerminalIcon, Minus, X } from './Icons'
 
 export default function SSHTerminal({
   server,
   onClose,
+  onMinimize,
 }: {
   server: Server
   onClose: () => void
+  onMinimize: () => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
@@ -162,7 +164,7 @@ export default function SSHTerminal({
   return (
     <div
       className="overlay"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      onMouseDown={(e) => e.target === e.currentTarget && onMinimize()}
     >
       <div className="modal modal-xl term-modal" ref={modalRef}>
         <header className="modal-head term-head">
@@ -174,7 +176,15 @@ export default function SSHTerminal({
               {server.ssh_user}@{server.host}:{server.port}
             </span>
           </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
+          <button
+            className="icon-btn"
+            onClick={onMinimize}
+            aria-label="Minimize"
+            title="Minimize — session stays alive"
+          >
+            <Minus size={18} />
+          </button>
+          <button className="icon-btn" onClick={onClose} aria-label="Close" title="End session">
             <X size={18} />
           </button>
         </header>
