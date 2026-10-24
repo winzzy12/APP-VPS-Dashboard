@@ -219,6 +219,73 @@ export default function Dashboard({
     [toast],
   )
 
+  const renderActions = (s: Server) => (
+    <div className="row-actions">
+      <button
+        className={`icon-btn ${s.pinned ? 'pin-on' : ''}`}
+        title={s.pinned ? 'Unpin' : 'Pin to top'}
+        onClick={() => void togglePin(s)}
+      >
+        <Pin size={16} />
+      </button>
+      {s.ssh_status === 'error' && (
+        <button
+          className="icon-btn danger"
+          title={s.last_error ?? 'SSH error'}
+          onClick={() => setDetailId(s.id)}
+        >
+          <AlertTriangle size={16} />
+        </button>
+      )}
+      <button
+        className="icon-btn"
+        title="Metrics & charts"
+        onClick={() => setDetailId(s.id)}
+      >
+        <Activity size={16} />
+      </button>
+      <button
+        className="icon-btn"
+        title="SSH terminal"
+        onClick={() => setTermId(s.id)}
+      >
+        <TerminalIcon size={16} />
+      </button>
+      <button
+        className="icon-btn danger"
+        title="Reboot"
+        onClick={() => setRebooting(s)}
+      >
+        <Power size={16} />
+      </button>
+      <button
+        className="icon-btn"
+        title="Check now"
+        onClick={() => void checkOne(s)}
+        disabled={checkingIds.has(s.id)}
+      >
+        <RefreshCw
+          size={16}
+          className={checkingIds.has(s.id) ? 'spin' : undefined}
+        />
+      </button>
+      <button
+        className="icon-btn"
+        title="Edit"
+        onClick={() => setEditing({ mode: 'edit', server: s })}
+      >
+        <Pencil size={16} />
+      </button>
+      <button
+        className="icon-btn danger"
+        title="Delete"
+        onClick={() => setDeleting(s)}
+      >
+        <Trash size={16} />
+      </button>
+    </div>
+  )
+
   const reboot = useCallback(
     async (server: Server) => {
       setRebootBusy(true)
@@ -387,6 +454,7 @@ export default function Dashboard({
               </button>
             </div>
           ) : (
+            <>
             <table className="table">
               <thead>
                 <tr>
@@ -436,75 +504,48 @@ export default function Dashboard({
                       </span>
                     </td>
                     <td>
-                      <div className="row-actions">
-                        <button
-                          className={`icon-btn ${s.pinned ? 'pin-on' : ''}`}
-                          title={s.pinned ? 'Unpin' : 'Pin to top'}
-                          onClick={() => void togglePin(s)}
-                        >
-                          <Pin size={16} />
-                        </button>
-                        {s.ssh_status === 'error' && (
-                          <button
-                            className="icon-btn danger"
-                            title={s.last_error ?? 'SSH error'}
-                            onClick={() => setDetailId(s.id)}
-                          >
-                            <AlertTriangle size={16} />
-                          </button>
-                        )}
-                        <button
-                          className="icon-btn"
-                          title="Metrics & charts"
-                          onClick={() => setDetailId(s.id)}
-                        >
-                          <Activity size={16} />
-                        </button>
-                        <button
-                          className="icon-btn"
-                          title="SSH terminal"
-                          onClick={() => setTermId(s.id)}
-                        >
-                          <TerminalIcon size={16} />
-                        </button>
-                        <button
-                          className="icon-btn danger"
-                          title="Reboot"
-                          onClick={() => setRebooting(s)}
-                        >
-                          <Power size={16} />
-                        </button>
-                        <button
-                          className="icon-btn"
-                          title="Check now"
-                          onClick={() => void checkOne(s)}
-                          disabled={checkingIds.has(s.id)}
-                        >
-                          <RefreshCw
-                            size={16}
-                            className={checkingIds.has(s.id) ? 'spin' : undefined}
-                          />
-                        </button>
-                        <button
-                          className="icon-btn"
-                          title="Edit"
-                          onClick={() => setEditing({ mode: 'edit', server: s })}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          className="icon-btn danger"
-                          title="Delete"
-                          onClick={() => setDeleting(s)}
-                        >
-                          <Trash size={16} />
-                        </button>
-                      </div>
+                      {renderActions(s)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
+            <div className="cards">
+              {servers.map((s) => (
+                <div key={s.id} className="server-card">
+                  <div className="card-top">
+                    <div className="card-id">
+                      {s.pinned && <Pin size={12} className="pin-badge" />}
+                      <button className="link-name" onClick={() => setDetailId(s.id)}>
+                        {s.name}
+                      </button>
+                    </div>
+                    <StatusPill server={s} />
+                  </div>
+                  <span className="card-host">
+                    <Globe size={12} /> {s.host}:{s.port}
+                    {s.os ? ` · ${s.os}` : ''}
+                  </span>
+                  <div className="card-metrics">
+                    <div className="card-metric">
+                      <span>CPU</span>
+                      <MiniMetric value={s.cpu_percent} />
+                    </div>
+                    <div className="card-metric">
+                      <span>RAM</span>
+                      <MiniMetric value={s.mem_percent} />
+                    </div>
+                    <div className="card-metric">
+                      <span>Uptime</span>
+                      <b className="card-uptime">{fmtUptime(s.uptime_seconds)}</b>
+                    </div>
+                  </div>
+                  {renderActions(s)}
+                </div>
+              ))}
+            </div>
+            </>
           )}
         </section>
       </main>

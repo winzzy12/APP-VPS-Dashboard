@@ -1349,11 +1349,121 @@ textarea {
   .charts {
     grid-template-columns: 1fr;
   }
+}
 
-  .table th:nth-child(4),
-  .table td:nth-child(4),
-  .table th:nth-child(6),
-  .table td:nth-child(6) {
+/* ================= phones: server cards replace the table ================= */
+.cards {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .overlay {
+    padding: 12px;
+  }
+
+  .table {
     display: none;
+  }
+
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .server-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 12px 14px;
+  }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .card-id {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .card-id .link-name {
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-host {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    margin-top: 4px;
+  }
+
+  .card-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.2fr;
+    gap: 10px;
+    align-items: center;
+    margin: 12px 0;
+  }
+
+  .card-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+
+  .card-uptime {
+    color: var(--text);
+    font-size: 13px;
+    letter-spacing: 0;
+  }
+
+  .server-card .row-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .server-card .icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  /* modals fill small screens */
+  .modal,
+  .modal-xl {
+    max-width: 100%;
+  }
+
+  .term-modal {
+    height: 86dvh;
+  }
+
+  .toasts {
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 480px) {
+  .info-grid {
+    grid-template-columns: 1fr;
   }
 }
