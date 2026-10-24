@@ -14,6 +14,7 @@ export default function SSHTerminal({
   onClose: () => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -115,9 +116,39 @@ export default function SSHTerminal({
     })
     ro.observe(container)
 
+    // On phones the keyboard shrinks only the VISUAL viewport (layout stays put),
+    // so a plain ResizeObserver never fires and the bottom of the terminal hides
+    // behind the keyboard. Resize the modal to the visual viewport instead.
+    const modal = modalRef.current
+    const vv = window.visualViewport
+    const onVV = () => {
+      if (!modal) return
+      const h = vv
+        ? Math.max(240, Math.min(window.innerHeight * 0.86, vv.height - 24))
+        : Math.min(window.innerHeight * 0.86, window.innerHeight - 40)
+      modal.style.height = `${h}px`
+      window.clearTimeout(resizeTimer)
+      resizeTimer = window.setTimeout(() => {
+        try {
+          fit.fit()
+        } catch {
+          /* noop */
+        }
+      }, 50)
+    }
+    if (vv) {
+      vv.addEventListener('resize', onVV)
+      vv.addEventListener('scroll', onVV)
+    }
+    onVV()
+
     return () => {
       closed = true
       ro.disconnect()
+      if (vv) {
+        vv.removeEventListener('resize', onVV)
+        vv.removeEventListener('scroll', onVV)
+      }
       window.clearTimeout(resizeTimer)
       try {
         ws.close()
@@ -133,7 +164,7 @@ export default function SSHTerminal({
       className="overlay"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal modal-xl term-modal">
+      <div className="modal modal-xl term-modal" ref={modalRef}>
         <header className="modal-head term-head">
           <div className="detail-title">
             <h3>

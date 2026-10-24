@@ -879,6 +879,8 @@ textarea {
 
 .modal {
   width: 100%;
+  min-width: 0;
+  min-height: 0;
   max-width: 560px;
   max-height: calc(100vh - 40px);
   display: flex;
@@ -1331,7 +1333,8 @@ textarea {
 .term-container {
   flex: 1;
   min-height: 0;
-  padding: 6px 10px;
+  /* no padding here — FitAddon only subtracts the .xterm element's own padding,
+     so padding on the container made cols/rows run past the visible box */
   background: #0b1120;
   border-radius: 0 0 18px 18px;
   overflow: hidden;
@@ -1339,6 +1342,7 @@ textarea {
 
 .term-container .xterm {
   height: 100%;
+  padding: 6px 10px;
 }
 
 @media (max-width: 720px) {
@@ -1452,6 +1456,7 @@ textarea {
   }
 
   .term-modal {
+    height: 86vh;
     height: 86dvh;
   }
 
@@ -1466,4 +1471,10 @@ textarea {
   .info-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* phones: stop Chrome/Firefox font auto-sizing from inflating terminal glyphs */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
