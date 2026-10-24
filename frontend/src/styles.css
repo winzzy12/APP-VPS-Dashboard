@@ -1298,6 +1298,16 @@ textarea {
   text-align: center;
 }
 
+/* ================= pin to top ================= */
+.icon-btn.pin-on {
+  color: #f59e0b;
+}
+
+.pin-badge {
+  color: #f59e0b;
+  flex: none;
+}
+
 /* ================= ssh terminal ================= */
 .modal-xl {
   max-width: 940px;

@@ -58,6 +58,7 @@ def init_db() -> None:
             "uptime_seconds": "INTEGER",
             "last_reboot": "TEXT",
             "last_metrics_at": "TEXT",
+            "pinned": "INTEGER NOT NULL DEFAULT 0",
         }
         existing = {
             row["name"] for row in conn.execute("PRAGMA table_info(servers)").fetchall()
@@ -110,7 +111,7 @@ def get_user_by_id(user_id: int) -> Optional[dict[str, Any]]:
 def list_servers() -> list[dict[str, Any]]:
     with closing(get_conn()) as conn:
         rows = conn.execute(
-            "SELECT * FROM servers ORDER BY name COLLATE NOCASE"
+            "SELECT * FROM servers ORDER BY pinned DESC, name COLLATE NOCASE"
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -191,6 +192,14 @@ def set_host_key_fp(server_id: int, fingerprint: str) -> None:
 def clear_host_key_fp(server_id: int) -> None:
     with closing(get_conn()) as conn, conn:
         conn.execute("UPDATE servers SET host_key_fp = NULL WHERE id = ?", (server_id,))
+
+
+def set_pinned(server_id: int, pinned: bool) -> None:
+    with closing(get_conn()) as conn, conn:
+        conn.execute(
+            "UPDATE servers SET pinned = ? WHERE id = ?",
+            (1 if pinned else 0, server_id),
+        )
 
 
 def update_metrics(server_id: int, m: dict[str, Any]) -> None:

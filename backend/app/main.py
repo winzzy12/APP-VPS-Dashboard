@@ -25,6 +25,7 @@ def public(server: dict[str, Any]) -> dict[str, Any]:
     """Strip the encrypted password — it must never leave the backend."""
     out = {k: v for k, v in server.items() if k != "ssh_password_enc"}
     out["has_credentials"] = server.get("ssh_password_enc") is not None
+    out["pinned"] = bool(server.get("pinned"))
     return out
 
 
@@ -264,6 +265,17 @@ async def servers_reboot(server_id: int, _: dict = Depends(current_user)) -> dic
     if not result.ok:
         raise HTTPException(status_code=502, detail=result.error or "Reboot failed.")
     return {"ok": True, "message": "Reboot command sent — the server is restarting."}
+
+
+@app.post("/api/servers/{server_id}/pin")
+def servers_pin(server_id: int, _: dict = Depends(current_user)) -> dict[str, Any]:
+    server = db.get_server(server_id)
+    if server is None:
+        raise HTTPException(status_code=404, detail="Server not found")
+    db.set_pinned(server_id, not bool(server.get("pinned")))
+    updated = db.get_server(server_id)
+    assert updated is not None
+    return public(updated)
 
 
 @app.get("/api/servers/{server_id}/metrics")

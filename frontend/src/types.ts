@@ -19,6 +19,7 @@ export interface Server {
   last_checked: string | null
   ssh_status: SSHStatus
   has_credentials: boolean
+  pinned: boolean
   last_error: string | null
   cpu_percent: number | null
   mem_percent: number | null

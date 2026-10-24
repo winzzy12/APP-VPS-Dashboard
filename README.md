@@ -57,6 +57,8 @@ frontend/
   (fallback: direct `systemctl reboot` when sudo is missing). A connection
   drop before any exit status = success; sudoers/auth failures return 502
   with a sanitized reason. Requires stored SSH credentials; TOFU applies.
+- `POST /api/servers/{id}/pin` — toggle pin; pinned servers sort to the top
+  of every list (`ORDER BY pinned DESC, name`), button/name show amber.
 
 All routes except `/api/health` and `/api/auth/*` require `Authorization: Bearer <token>`.
 

@@ -22,6 +22,7 @@ import {
   Logo,
   LogOut,
   Pencil,
+  Pin,
   Plus,
   RefreshCw,
   Server as ServerIcon,
@@ -206,6 +207,18 @@ export default function Dashboard({
   }, [])
 
   const closeTerm = useCallback(() => setTermId(null), [])
+
+  const togglePin = useCallback(
+    async (server: Server) => {
+      try {
+        const updated = await api<Server>(`/servers/${server.id}/pin`, { method: 'POST' })
+        setServers((list) => list.map((s) => (s.id === updated.id ? updated : s)))
+      } catch (err) {
+        toast('error', err instanceof Error ? err.message : 'Pin failed')
+      }
+    },
+    [toast],
+  )
 
   const reboot = useCallback(
     async (server: Server) => {
@@ -392,6 +405,7 @@ export default function Dashboard({
                   <tr key={s.id}>
                     <td>
                       <div className="server-cell">
+                        {s.pinned && <Pin size={12} className="pin-badge" />}
                         <button className="link-name" onClick={() => setDetailId(s.id)}>
                           {s.name}
                         </button>
@@ -424,6 +438,13 @@ export default function Dashboard({
                     </td>
                     <td>
                       <div className="row-actions">
+                        <button
+                          className={`icon-btn ${s.pinned ? 'pin-on' : ''}`}
+                          title={s.pinned ? 'Unpin' : 'Pin to top'}
+                          onClick={() => void togglePin(s)}
+                        >
+                          <Pin size={16} />
+                        </button>
                         {s.ssh_status === 'error' && (
                           <button
                             className="icon-btn danger"
