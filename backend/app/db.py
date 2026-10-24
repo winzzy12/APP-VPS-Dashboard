@@ -42,6 +42,29 @@ def init_db() -> None:
             );
             """
         )
+        # --- idempotent migration for SSH metrics columns ---
+        expected = {
+            "ssh_password_enc": "TEXT",
+            "host_key_fp": "TEXT",
+            "ssh_status": "TEXT NOT NULL DEFAULT 'unknown'",
+            "last_error": "TEXT",
+            "cpu_percent": "REAL",
+            "mem_percent": "REAL",
+            "mem_used_mb": "INTEGER",
+            "mem_total_mb": "INTEGER",
+            "disk_percent": "REAL",
+            "disk_used_gb": "REAL",
+            "disk_total_gb": "REAL",
+            "uptime_seconds": "INTEGER",
+            "last_reboot": "TEXT",
+            "last_metrics_at": "TEXT",
+        }
+        existing = {
+            row["name"] for row in conn.execute("PRAGMA table_info(servers)").fetchall()
+        }
+        for name, decl in expected.items():
+            if name not in existing:
+                conn.execute(f"ALTER TABLE servers ADD COLUMN {name} {decl}")
 
 
 def _row(row: Optional[sqlite3.Row]) -> Optional[dict[str, Any]]:
@@ -138,4 +161,58 @@ def set_server_status(server_id: int, status: str, latency_ms: Optional[int]) ->
             "UPDATE servers SET status = ?, latency_ms = ?,"
             " last_checked = datetime('now') WHERE id = ?",
             (status, latency_ms, server_id),
+        )
+
+
+def set_ssh_password(server_id: int, password_enc: str) -> None:
+    with closing(get_conn()) as conn, conn:
+        conn.execute(
+            "UPDATE servers SET ssh_password_enc = ?,"
+            " ssh_status = 'unknown', last_error = NULL WHERE id = ?",
+            (password_enc, server_id),
+        )
+
+
+def set_ssh_status(server_id: int, status: str, error: Optional[str] = None) -> None:
+    with closing(get_conn()) as conn, conn:
+        conn.execute(
+            "UPDATE servers SET ssh_status = ?, last_error = ? WHERE id = ?",
+            (status, error, server_id),
+        )
+
+
+def set_host_key_fp(server_id: int, fingerprint: str) -> None:
+    with closing(get_conn()) as conn, conn:
+        conn.execute(
+            "UPDATE servers SET host_key_fp = ? WHERE id = ?", (fingerprint, server_id)
+        )
+
+
+def clear_host_key_fp(server_id: int) -> None:
+    with closing(get_conn()) as conn, conn:
+        conn.execute("UPDATE servers SET host_key_fp = NULL WHERE id = ?", (server_id,))
+
+
+def update_metrics(server_id: int, m: dict[str, Any]) -> None:
+    with closing(get_conn()) as conn, conn:
+        conn.execute(
+            """UPDATE servers SET
+                   cpu_percent = ?, mem_percent = ?, mem_used_mb = ?, mem_total_mb = ?,
+                   disk_percent = ?, disk_used_gb = ?, disk_total_gb = ?,
+                   uptime_seconds = ?, last_reboot = ?,
+                   ssh_status = 'ok', last_error = NULL,
+                   last_metrics_at = datetime('now')
+               WHERE id = ?""",
+            (
+                m["cpu_percent"],
+                m["mem_percent"],
+                m["mem_used_mb"],
+                m["mem_total_mb"],
+                m["disk_percent"],
+                m["disk_used_gb"],
+                m["disk_total_gb"],
+                m["uptime_seconds"],
+                m.get("last_reboot") or None,
+                server_id,
+            ),
         )

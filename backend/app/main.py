@@ -1,27 +1,38 @@
 """VPS Dashboard — FastAPI backend + static SPA host (127.0.0.1:8081)."""
+import asyncio
 import pathlib
 import socket
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import db
+from . import collector, db
 from .auth import current_user, hash_password, make_token, verify_password
+from .crypto import encrypt_secret
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parents[2]
 DIST_DIR = ROOT_DIR / "frontend" / "dist"
 
 
+def public(server: dict[str, Any]) -> dict[str, Any]:
+    """Strip the encrypted password — it must never leave the backend."""
+    out = {k: v for k, v in server.items() if k != "ssh_password_enc"}
+    out["has_credentials"] = server.get("ssh_password_enc") is not None
+    return out
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.init_db()
+    task = asyncio.create_task(collector.loop())
     yield
+    task.cancel()
 
 
 app = FastAPI(
@@ -53,6 +64,7 @@ class ServerIn(BaseModel):
     ssh_user: str = Field(default="root", max_length=32)
     os: str = Field(default="", max_length=64)
     notes: str = Field(default="", max_length=2000)
+    ssh_password: Optional[str] = Field(default=None, max_length=256)
 
 
 # ---------------------------------------------------------------- helpers
@@ -113,12 +125,14 @@ def auth_me(user: dict = Depends(current_user)) -> dict[str, Any]:
 
 @app.get("/api/servers")
 def servers_list(_: dict = Depends(current_user)) -> list[dict[str, Any]]:
-    return db.list_servers()
+    return [public(s) for s in db.list_servers()]
 
 
 @app.post("/api/servers", status_code=201)
-def servers_create(body: ServerIn, _: dict = Depends(current_user)) -> dict[str, Any]:
-    return db.create_server(
+async def servers_create(
+    body: ServerIn, _: dict = Depends(current_user)
+) -> dict[str, Any]:
+    server = db.create_server(
         body.name.strip(),
         body.host.strip(),
         body.port,
@@ -126,15 +140,25 @@ def servers_create(body: ServerIn, _: dict = Depends(current_user)) -> dict[str,
         body.os.strip(),
         body.notes.strip(),
     )
+    if body.ssh_password:
+        db.set_ssh_password(server["id"], encrypt_secret(body.ssh_password))
+        fresh = db.get_server(server["id"])
+        if fresh:
+            await collector.probe(fresh)
+    else:
+        db.set_ssh_status(server["id"], "none")
+    created = db.get_server(server["id"])
+    assert created is not None
+    return public(created)
 
 
 @app.put("/api/servers/{server_id}")
-def servers_update(
+async def servers_update(
     server_id: int, body: ServerIn, _: dict = Depends(current_user)
 ) -> dict[str, Any]:
     if db.get_server(server_id) is None:
         raise HTTPException(status_code=404, detail="Server not found")
-    updated = db.update_server(
+    db.update_server(
         server_id,
         {
             "name": body.name.strip(),
@@ -145,14 +169,21 @@ def servers_update(
             "notes": body.notes.strip(),
         },
     )
+    if body.ssh_password:
+        db.set_ssh_password(server_id, encrypt_secret(body.ssh_password))
+        fresh = db.get_server(server_id)
+        if fresh:
+            await collector.probe(fresh)
+    updated = db.get_server(server_id)
     assert updated is not None
-    return updated
+    return public(updated)
 
 
 @app.delete("/api/servers/{server_id}", status_code=204)
 def servers_delete(server_id: int, _: dict = Depends(current_user)) -> None:
     if not db.delete_server(server_id):
         raise HTTPException(status_code=404, detail="Server not found")
+    collector.forget(server_id)
 
 
 @app.post("/api/servers/check-all")
@@ -166,7 +197,7 @@ def servers_check_all(_: dict = Depends(current_user)) -> list[dict[str, Any]]:
 
         with ThreadPoolExecutor(max_workers=min(16, len(servers))) as pool:
             list(pool.map(job, servers))
-    return db.list_servers()
+    return [public(s) for s in db.list_servers()]
 
 
 @app.post("/api/servers/{server_id}/check")
@@ -178,7 +209,46 @@ def servers_check(server_id: int, _: dict = Depends(current_user)) -> dict[str, 
     db.set_server_status(server_id, status, latency)
     updated = db.get_server(server_id)
     assert updated is not None
-    return updated
+    return public(updated)
+
+
+@app.post("/api/servers/{server_id}/test")
+async def servers_test(server_id: int, _: dict = Depends(current_user)) -> dict[str, Any]:
+    server = db.get_server(server_id)
+    if server is None:
+        raise HTTPException(status_code=404, detail="Server not found")
+    result = await collector.probe(server)
+    return {"ok": result.ok, "error": result.error, "fingerprint": result.fingerprint}
+
+
+@app.post("/api/servers/{server_id}/collect")
+async def servers_collect(
+    server_id: int, _: dict = Depends(current_user)
+) -> dict[str, Any]:
+    server = db.get_server(server_id)
+    if server is None:
+        raise HTTPException(status_code=404, detail="Server not found")
+    await collector.probe(server)
+    updated = db.get_server(server_id)
+    assert updated is not None
+    return public(updated)
+
+
+@app.get("/api/servers/{server_id}/metrics")
+def servers_metrics(server_id: int, _: dict = Depends(current_user)) -> dict[str, Any]:
+    if db.get_server(server_id) is None:
+        raise HTTPException(status_code=404, detail="Server not found")
+    return {
+        "interval": collector.INTERVAL_SECONDS,
+        "history": collector.history_for(server_id),
+    }
+
+
+@app.post("/api/servers/{server_id}/reset-host-key", status_code=204)
+def servers_reset_host_key(server_id: int, _: dict = Depends(current_user)) -> None:
+    if db.get_server(server_id) is None:
+        raise HTTPException(status_code=404, detail="Server not found")
+    db.clear_host_key_fp(server_id)
 
 
 # ---------------------------------------------------------------- static SPA

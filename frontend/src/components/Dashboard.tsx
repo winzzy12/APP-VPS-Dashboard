@@ -9,11 +9,14 @@ import {
 } from 'react'
 import { api } from '../api'
 import type { Server, User } from '../types'
+import ServerDetail from './ServerDetail'
 import {
   Activity,
   AlertTriangle,
   CheckCircle,
   Clock,
+  Eye,
+  EyeOff,
   Globe,
   Logo,
   LogOut,
@@ -34,6 +37,7 @@ const EMPTY_FORM = {
   host: '',
   port: '22',
   ssh_user: 'root',
+  ssh_password: '',
   os: '',
   notes: '',
 }
@@ -78,6 +82,19 @@ function StatusPill({ server }: { server: Server }) {
   )
 }
 
+function MiniMetric({ value }: { value: number | null }) {
+  if (value == null) return <span className="muted">—</span>
+  const level = value >= 90 ? 'crit' : value >= 70 ? 'warn' : 'ok'
+  return (
+    <div className="mini-metric">
+      <span className="mini-bar">
+        <i className={level} style={{ width: `${Math.min(100, value)}%` }} />
+      </span>
+      <span className="mini-val">{Math.round(value * 10) / 10}%</span>
+    </div>
+  )
+}
+
 export default function Dashboard({
   user,
   onLogout,
@@ -91,6 +108,7 @@ export default function Dashboard({
   const [checkingIds, setCheckingIds] = useState<ReadonlySet<number>>(new Set())
   const [editing, setEditing] = useState<Editing | null>(null)
   const [deleting, setDeleting] = useState<Server | null>(null)
+  const [detailId, setDetailId] = useState<number | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
   const nextToastId = useRef(1)
 
@@ -167,6 +185,10 @@ export default function Dashboard({
     [toast, load, checkAll],
   )
 
+  const handleDetailUpdate = useCallback((updated: Server) => {
+    setServers((list) => list.map((s) => (s.id === updated.id ? updated : s)))
+  }, [])
+
   useEffect(() => {
     void load().then(() => void checkAll())
     const iv = setInterval(() => {
@@ -189,6 +211,9 @@ export default function Dashboard({
         : null,
     }
   }, [servers])
+
+  const detailServer =
+    detailId != null ? (servers.find((s) => s.id === detailId) ?? null) : null
 
   return (
     <div className="shell">
@@ -299,7 +324,7 @@ export default function Dashboard({
               <ServerIcon size={44} className="empty-icon" />
               <h3>No servers yet</h3>
               <p>
-                Add your first VPS to monitor reachability and response time.
+                Add your first VPS to monitor reachability and system metrics.
               </p>
               <button className="btn btn-primary" onClick={() => setEditing({ mode: 'add' })}>
                 <Plus size={16} />
@@ -312,6 +337,8 @@ export default function Dashboard({
                 <tr>
                   <th>Server</th>
                   <th>SSH user</th>
+                  <th>CPU</th>
+                  <th>RAM</th>
                   <th>Status</th>
                   <th>Last checked</th>
                   <th className="th-actions">Actions</th>
@@ -322,7 +349,9 @@ export default function Dashboard({
                   <tr key={s.id}>
                     <td>
                       <div className="server-cell">
-                        <strong>{s.name}</strong>
+                        <button className="link-name" onClick={() => setDetailId(s.id)}>
+                          {s.name}
+                        </button>
                         <span>
                           <Globe size={13} /> {s.host}:{s.port}
                         </span>
@@ -331,6 +360,12 @@ export default function Dashboard({
                     </td>
                     <td className="muted">{s.ssh_user}</td>
                     <td>
+                      <MiniMetric value={s.cpu_percent} />
+                    </td>
+                    <td>
+                      <MiniMetric value={s.mem_percent} />
+                    </td>
+                    <td>
                       <StatusPill server={s} />
                     </td>
                     <td className="muted">
@@ -338,13 +373,29 @@ export default function Dashboard({
                     </td>
                     <td>
                       <div className="row-actions">
+                        {s.ssh_status === 'error' && (
+                          <button
+                            className="icon-btn danger"
+                            title={s.last_error ?? 'SSH error'}
+                            onClick={() => setDetailId(s.id)}
+                          >
+                            <AlertTriangle size={16} />
+                          </button>
+                        )}
+                        <button
+                          className="icon-btn"
+                          title="Metrics & charts"
+                          onClick={() => setDetailId(s.id)}
+                        >
+                          <Activity size={16} />
+                        </button>
                         <button
                           className="icon-btn"
                           title="Check now"
                           onClick={() => void checkOne(s)}
                           disabled={checkingIds.has(s.id)}
                         >
-                          <Activity
+                          <RefreshCw
                             size={16}
                             className={checkingIds.has(s.id) ? 'spin' : undefined}
                           />
@@ -411,6 +462,15 @@ export default function Dashboard({
         </div>
       )}
 
+      {detailServer && (
+        <ServerDetail
+          server={detailServer}
+          onClose={() => setDetailId(null)}
+          onUpdated={handleDetailUpdate}
+          toast={toast}
+        />
+      )}
+
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`}>
@@ -439,11 +499,13 @@ function ServerModal({
           host: initial.host,
           port: String(initial.port),
           ssh_user: initial.ssh_user,
+          ssh_password: '',
           os: initial.os,
           notes: initial.notes,
         }
       : EMPTY_FORM,
   )
+  const [showPw, setShowPw] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -469,6 +531,7 @@ function ServerModal({
       host: form.host.trim(),
       port: Number(form.port) || 22,
       ssh_user: form.ssh_user.trim() || 'root',
+      ssh_password: form.ssh_password,
       os: form.os.trim(),
       notes: form.notes.trim(),
     }
@@ -511,12 +574,34 @@ function ServerModal({
               <input value={form.host} onChange={set('host')} placeholder="203.0.113.10" required />
             </label>
             <label className="field">
-              <span>Port</span>
+              <span>SSH port</span>
               <input value={form.port} onChange={set('port')} inputMode="numeric" />
             </label>
             <label className="field">
               <span>SSH user</span>
               <input value={form.ssh_user} onChange={set('ssh_user')} placeholder="root" />
+            </label>
+            <label className="field field-wide">
+              <span>
+                SSH password{initial && initial.has_credentials ? ' — leave blank to keep' : ''}
+              </span>
+              <div className="pw-wrap">
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  value={form.ssh_password}
+                  onChange={set('ssh_password')}
+                  placeholder="Used to collect CPU / RAM / disk metrics"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="pw-toggle"
+                  onClick={() => setShowPw((v) => !v)}
+                  aria-label="Toggle password visibility"
+                >
+                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </label>
             <label className="field field-wide">
               <span>OS</span>
@@ -532,6 +617,11 @@ function ServerModal({
               />
             </label>
           </div>
+          <p className="form-note">
+            The SSH password is stored encrypted and never displayed again. The host key is
+            pinned on first connect (TOFU) — a changed key blocks collection until you reset
+            it.
+          </p>
           {error && <div className="form-error">{error}</div>}
         </div>
         <footer className="modal-foot">
@@ -542,7 +632,13 @@ function ServerModal({
             className="btn btn-primary"
             disabled={saving || !form.name.trim() || !form.host.trim()}
           >
-            {saving ? <span className="spinner spinner-sm light" /> : initial ? 'Save changes' : 'Add server'}
+            {saving ? (
+              <span className="spinner spinner-sm light" />
+            ) : initial ? (
+              'Save changes'
+            ) : (
+              'Add server'
+            )}
           </button>
         </footer>
       </form>
