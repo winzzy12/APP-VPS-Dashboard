@@ -57,6 +57,10 @@ frontend/
   (fallback: direct `systemctl reboot` when sudo is missing). A connection
   drop before any exit status = success; sudoers/auth failures return 502
   with a sanitized reason. Requires stored SSH credentials; TOFU applies.
+- `POST /api/auth/login` / `POST /api/auth/setup` — issue a JWT (24h TTL).
+- `PUT /api/auth/username` — change own username (requires current password);
+  returns a fresh token. `PUT /api/auth/password` — change own password
+  (requires current password; min 8 chars). Sessions stay valid (sub = id).
 - `POST /api/servers/{id}/pin` — toggle pin; pinned servers sort to the top
   of every list (`ORDER BY pinned DESC, name`), button/name show amber.
 

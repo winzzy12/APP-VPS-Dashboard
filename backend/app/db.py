@@ -105,6 +105,19 @@ def get_user_by_id(user_id: int) -> Optional[dict[str, Any]]:
         )
 
 
+def update_username(user_id: int, username: str) -> None:
+    with closing(get_conn()) as conn, conn:
+        conn.execute("UPDATE users SET username = ? WHERE id = ?", (username, user_id))
+
+
+def update_password(user_id: int, password_hash: str) -> None:
+    with closing(get_conn()) as conn, conn:
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (password_hash, user_id),
+        )
+
+
 # ---------------------------------------------------------------- servers
 
 

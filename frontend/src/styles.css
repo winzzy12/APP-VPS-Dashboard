@@ -1527,6 +1527,57 @@ textarea {
   background: rgba(248, 113, 113, 0.12);
 }
 
+/* ================= settings ================= */
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  margin: 0;
+}
+
+.modal-title svg {
+  color: var(--accent-2);
+}
+
+.settings-body section + section {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-body h4 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-form .btn {
+  align-self: flex-start;
+}
+
+.settings-msg {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.settings-msg.err {
+  color: var(--red);
+}
+
+.settings-msg.ok {
+  color: var(--green);
+}
+
 @media (max-width: 480px) {
   .info-grid {
     grid-template-columns: 1fr;

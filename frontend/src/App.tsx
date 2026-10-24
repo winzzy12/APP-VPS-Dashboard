@@ -3,12 +3,14 @@ import { api, getToken, setToken } from './api'
 import type { User } from './types'
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
+import Settings from './components/Settings'
 
 type Phase = 'loading' | 'setup' | 'login' | 'app'
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('loading')
   const [user, setUser] = useState<User | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     ;(async () => {
@@ -36,14 +38,27 @@ export default function App() {
 
   if (phase === 'app' && user) {
     return (
-      <Dashboard
-        user={user}
-        onLogout={() => {
-          setToken(null)
-          setUser(null)
-          setPhase('login')
-        }}
-      />
+      <>
+        <Dashboard
+          user={user}
+          onLogout={() => {
+            setToken(null)
+            setUser(null)
+            setPhase('login')
+          }}
+          onOpenSettings={() => setShowSettings(true)}
+        />
+        {showSettings && (
+          <Settings
+            user={user}
+            onClose={() => setShowSettings(false)}
+            onUserUpdated={(u, token) => {
+              setToken(token)
+              setUser(u)
+            }}
+          />
+        )}
+      </>
     )
   }
 

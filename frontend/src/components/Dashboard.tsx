@@ -26,6 +26,7 @@ import {
   Plus,
   RefreshCw,
   Server as ServerIcon,
+  Settings as SettingsIcon,
   Terminal as TerminalIcon,
   Trash,
   X,
@@ -111,9 +112,11 @@ function MiniMetric({ value }: { value: number | null }) {
 export default function Dashboard({
   user,
   onLogout,
+  onOpenSettings,
 }: {
   user: User
   onLogout: () => void
+  onOpenSettings: () => void
 }) {
   const [servers, setServers] = useState<Server[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -360,6 +363,10 @@ export default function Dashboard({
           <button className="nav-item active">
             <ServerIcon size={18} />
             Servers
+          </button>
+          <button className="nav-item" onClick={onOpenSettings}>
+            <SettingsIcon size={18} />
+            Settings
           </button>
         </nav>
         <div className="sidebar-foot">

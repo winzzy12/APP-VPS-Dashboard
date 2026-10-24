@@ -61,6 +61,16 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class UsernameIn(BaseModel):
+    username: str = Field(min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_.-]+$")
+    current_password: str = Field(min_length=1, max_length=128)
+
+
+class PasswordIn(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class ServerIn(BaseModel):
     name: str = Field(min_length=1, max_length=64)
     host: str = Field(min_length=1, max_length=253)
@@ -122,6 +132,32 @@ def auth_login(body: LoginIn) -> dict[str, Any]:
 @app.get("/api/auth/me")
 def auth_me(user: dict = Depends(current_user)) -> dict[str, Any]:
     return {"id": user["id"], "username": user["username"]}
+
+
+@app.put("/api/auth/username")
+def auth_change_username(
+    body: UsernameIn, user: dict = Depends(current_user)
+) -> dict[str, Any]:
+    if not verify_password(body.current_password, user["password_hash"]):
+        raise HTTPException(status_code=403, detail="Current password is incorrect")
+    new_name = body.username.strip()
+    if new_name != user["username"] and db.get_user_by_username(new_name):
+        raise HTTPException(status_code=409, detail="Username already taken")
+    db.update_username(user["id"], new_name)
+    return {
+        "token": make_token(user["id"], new_name),
+        "user": {"id": user["id"], "username": new_name},
+    }
+
+
+@app.put("/api/auth/password")
+def auth_change_password(
+    body: PasswordIn, user: dict = Depends(current_user)
+) -> dict[str, Any]:
+    if not verify_password(body.current_password, user["password_hash"]):
+        raise HTTPException(status_code=403, detail="Current password is incorrect")
+    db.update_password(user["id"], hash_password(body.new_password))
+    return {"ok": True, "message": "Password updated."}
 
 
 # ---------------------------------------------------------------- servers
