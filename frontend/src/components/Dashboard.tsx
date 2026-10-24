@@ -366,7 +366,7 @@ export default function Dashboard({
           </button>
           <button className="nav-item" onClick={onOpenSettings}>
             <SettingsIcon size={18} />
-            Settings
+            Change password
           </button>
         </nav>
         <div className="sidebar-foot">
