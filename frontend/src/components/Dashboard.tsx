@@ -29,6 +29,7 @@ import {
   Trash,
   X,
   Zap,
+  Power,
 } from './Icons'
 
 type Toast = { id: number; kind: 'success' | 'error'; message: string }
@@ -112,6 +113,8 @@ export default function Dashboard({
   const [deleting, setDeleting] = useState<Server | null>(null)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [termId, setTermId] = useState<number | null>(null)
+  const [rebooting, setRebooting] = useState<Server | null>(null)
+  const [rebootBusy, setRebootBusy] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const nextToastId = useRef(1)
 
@@ -193,6 +196,29 @@ export default function Dashboard({
   }, [])
 
   const closeTerm = useCallback(() => setTermId(null), [])
+
+  const reboot = useCallback(
+    async (server: Server) => {
+      setRebootBusy(true)
+      try {
+        const res = await api<{ ok: boolean; message: string }>(
+          `/servers/${server.id}/reboot`,
+          { method: 'POST' },
+        )
+        toast('success', res.message || `Reboot command sent to "${server.name}"`)
+        setServers((list) =>
+          list.map((s) => (s.id === server.id ? { ...s, status: 'unknown' as const } : s)),
+        )
+        void checkAll()
+      } catch (err) {
+        toast('error', err instanceof Error ? err.message : 'Reboot failed')
+      } finally {
+        setRebootBusy(false)
+        setRebooting(null)
+      }
+    },
+    [toast, checkAll],
+  )
 
   useEffect(() => {
     void load().then(() => void checkAll())
@@ -404,6 +430,13 @@ export default function Dashboard({
                           <TerminalIcon size={16} />
                         </button>
                         <button
+                          className="icon-btn danger"
+                          title="Reboot"
+                          onClick={() => setRebooting(s)}
+                        >
+                          <Power size={16} />
+                        </button>
+                        <button
                           className="icon-btn"
                           title="Check now"
                           onClick={() => void checkOne(s)}
@@ -476,12 +509,50 @@ export default function Dashboard({
         </div>
       )}
 
+      {rebooting && (
+        <div
+          className="overlay"
+          onMouseDown={(e) => e.target === e.currentTarget && setRebooting(null)}
+        >
+          <div className="modal modal-sm">
+            <header className="modal-head">
+              <h3>Reboot server</h3>
+              <button className="icon-btn" onClick={() => setRebooting(null)} aria-label="Close">
+                <X size={18} />
+              </button>
+            </header>
+            <div className="modal-body">
+              <p className="confirm-text">
+                Reboot <strong>{rebooting.name}</strong> ({rebooting.host}) over SSH now? The
+                server will be unreachable for a few minutes.
+              </p>
+            </div>
+            <footer className="modal-foot">
+              <button className="btn btn-ghost" onClick={() => setRebooting(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={() => void reboot(rebooting)}
+                disabled={rebootBusy}
+              >
+                {rebootBusy ? <span className="spinner spinner-sm light" /> : 'Reboot now'}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
       {detailServer && (
         <ServerDetail
           server={detailServer}
           onClose={() => setDetailId(null)}
           onUpdated={handleDetailUpdate}
           onOpenTerminal={() => setTermId(detailServer.id)}
+          onRebootRequest={() => {
+            setDetailId(null)
+            setRebooting(detailServer)
+          }}
           toast={toast}
         />
       )}

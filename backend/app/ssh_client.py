@@ -9,6 +9,7 @@ Security rules:
 import base64
 import hashlib
 import socket
+import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -129,6 +130,109 @@ def collect_metrics(
         if metrics is None:
             return SSHResult(False, "Connected, but metrics output could not be parsed.", fp)
         return SSHResult(True, None, fp, metrics)
+    except paramiko.SSHException as exc:
+        raw = _sanitize(exc)
+        if "HOST_KEY_CHANGED" in raw:
+            return SSHResult(
+                False,
+                "Host key changed since first connect. Verify the server, then reset the stored host key.",
+                policy.seen_fp,
+            )
+        if "authentication" in raw.lower() or "auth" in raw.lower():
+            return SSHResult(
+                False,
+                "SSH authentication failed — check username and password.",
+                policy.seen_fp,
+            )
+        return SSHResult(False, f"SSH error: {raw}", policy.seen_fp)
+    except (socket.timeout, OSError) as exc:
+        return SSHResult(False, f"Connection failed: {_sanitize(exc)}")
+    finally:
+        client.close()
+
+
+REBOOT_COMMAND = "(sudo -S -p '' systemctl reboot || systemctl reboot) 2>&1"
+
+# A reboot tears the connection down within a couple of seconds; that drop is
+# the SUCCESS case. Everything else is classified from the merged output.
+def reboot_server(
+    host: str,
+    port: int,
+    username: str,
+    password: str,
+    stored_fp: Optional[str] = None,
+    timeout: float = CONNECT_TIMEOUT,
+    command: str = REBOOT_COMMAND,
+) -> SSHResult:
+    """Issue `sudo -S systemctl reboot` over SSH (sudo password via stdin).
+
+    Works for root (sudo needs no password), NOPASSWD sudoers and password
+    sudoers; falls back to a direct `systemctl reboot` when sudo is missing.
+    """
+    client = paramiko.SSHClient()
+    policy = _TofuPolicy(stored_fp)
+    client.set_missing_host_key_policy(policy)
+    try:
+        client.connect(
+            hostname=host,
+            port=port,
+            username=username,
+            password=password,
+            timeout=timeout,
+            auth_timeout=timeout,
+            banner_timeout=timeout,
+            channel_timeout=timeout,
+            look_for_keys=False,
+            allow_agent=False,
+        )
+        fp = policy.seen_fp or stored_fp
+        stdin, stdout, _stderr = client.exec_command(command, timeout=timeout)
+        stdin.write(password + "\n")
+        stdin.flush()
+        stdin.channel.shutdown_write()
+
+        chan = stdout.channel
+        buf = ""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            while chan.recv_ready():
+                buf += chan.recv(4096).decode("utf-8", "replace")
+            if chan.eof_received or chan.closed:
+                break
+            time.sleep(0.15)
+        while chan.recv_ready():
+            buf += chan.recv(4096).decode("utf-8", "replace")
+
+        status = chan.recv_exit_status() if chan.exit_status_ready() else None
+        # paramiko returns -1 when the channel closed without an exit status
+        # (i.e. the connection dropped mid-command)
+        real_status = status if status is not None and status >= 0 else None
+        clean = buf.strip()
+        lowered = clean.lower()
+
+        if real_status is not None:
+            if real_status == 0:
+                return SSHResult(True, None, fp)
+            if "not in the sudoers file" in lowered:
+                return SSHResult(False, "SSH user has no sudo rights for reboot.", fp)
+            if "incorrect password" in lowered:
+                return SSHResult(False, "sudo rejected the stored password.", fp)
+            if "authentication required" in lowered:
+                return SSHResult(
+                    False, "SSH user may not reboot (needs root or sudo rights).", fp
+                )
+            if clean:
+                return SSHResult(False, f"Reboot failed: {_sanitize(clean)}", fp)
+            return SSHResult(False, f"Reboot command exited with status {real_status}.", fp)
+        if chan.eof_received or chan.closed:
+            # Connection died before any exit status arrived — the host went
+            # down mid-command, which is what a successful reboot looks like.
+            return SSHResult(True, None, fp)
+        return SSHResult(
+            False,
+            f"No response within {int(timeout)}s — reboot was likely not triggered.",
+            fp,
+        )
     except paramiko.SSHException as exc:
         raw = _sanitize(exc)
         if "HOST_KEY_CHANGED" in raw:

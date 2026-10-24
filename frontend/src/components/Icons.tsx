@@ -128,6 +128,13 @@ export const Terminal = ({ size = 20, className }: IconProps) => (
   </svg>
 )
 
+export const Power = ({ size = 20, className }: IconProps) => (
+  <svg {...svgProps(size, className)}>
+    <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+    <line x1="12" y1="2" x2="12" y2="12" />
+  </svg>
+)
+
 export const Clock = ({ size = 20, className }: IconProps) => (
   <svg {...svgProps(size, className)}>
     <circle cx="12" cy="12" r="10" />

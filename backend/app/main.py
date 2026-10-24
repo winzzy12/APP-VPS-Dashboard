@@ -12,9 +12,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import collector, db
+from . import collector, db, ssh_client
 from .auth import current_user, hash_password, make_token, verify_password
-from .crypto import encrypt_secret
+from .crypto import InvalidToken, decrypt_secret, encrypt_secret
 from .terminal import router as terminal_router
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parents[2]
@@ -235,6 +235,35 @@ async def servers_collect(
     updated = db.get_server(server_id)
     assert updated is not None
     return public(updated)
+
+
+@app.post("/api/servers/{server_id}/reboot")
+async def servers_reboot(server_id: int, _: dict = Depends(current_user)) -> dict[str, Any]:
+    server = db.get_server(server_id)
+    if server is None:
+        raise HTTPException(status_code=404, detail="Server not found")
+    enc = server.get("ssh_password_enc")
+    if not enc:
+        raise HTTPException(
+            status_code=400, detail="No SSH password stored — edit the server first."
+        )
+    try:
+        password = decrypt_secret(enc)
+    except InvalidToken:
+        raise HTTPException(status_code=400, detail="Stored credentials cannot be decrypted.")
+    result = await asyncio.to_thread(
+        ssh_client.reboot_server,
+        server["host"],
+        server["port"],
+        server["ssh_user"],
+        password,
+        server.get("host_key_fp"),
+    )
+    if result.fingerprint and result.fingerprint != server.get("host_key_fp"):
+        db.set_host_key_fp(server_id, result.fingerprint)
+    if not result.ok:
+        raise HTTPException(status_code=502, detail=result.error or "Reboot failed.")
+    return {"ok": True, "message": "Reboot command sent — the server is restarting."}
 
 
 @app.get("/api/servers/{server_id}/metrics")

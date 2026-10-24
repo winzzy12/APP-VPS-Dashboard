@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api'
 import type { MetricsPoint, MetricsResponse, Server } from '../types'
 import { AreaChart } from './Chart'
-import { Activity, AlertTriangle, Terminal as TerminalIcon, X } from './Icons'
+import {
+  Activity,
+  AlertTriangle,
+  Power,
+  Terminal as TerminalIcon,
+  X,
+} from './Icons'
 
 function fmtPct(v: number | null | undefined): string {
   return v == null ? '—' : `${Math.round(v * 10) / 10}%`
@@ -28,12 +34,14 @@ export default function ServerDetail({
   onClose,
   onUpdated,
   onOpenTerminal,
+  onRebootRequest,
   toast,
 }: {
   server: Server
   onClose: () => void
   onUpdated: (server: Server) => void
   onOpenTerminal: () => void
+  onRebootRequest: () => void
   toast: (kind: 'success' | 'error', message: string) => void
 }) {
   const [history, setHistory] = useState<MetricsPoint[]>([])
@@ -147,6 +155,16 @@ export default function ServerDetail({
               }}
             >
               <TerminalIcon size={16} />
+            </button>
+            <button
+              className="icon-btn danger"
+              title="Reboot server"
+              onClick={() => {
+                onClose()
+                onRebootRequest()
+              }}
+            >
+              <Power size={16} />
             </button>
             <button
               className="icon-btn"

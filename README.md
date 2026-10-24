@@ -53,6 +53,10 @@ frontend/
   the URL / access logs); then client sends `{"type":"input","data":...}` and
   `{"type":"resize","cols":n,"rows":n}`, server streams raw PTY output.
   Requires stored SSH credentials; TOFU host-key policy applies.
+- `POST /api/servers/{id}/reboot` — run `sudo -S systemctl reboot` over SSH
+  (fallback: direct `systemctl reboot` when sudo is missing). A connection
+  drop before any exit status = success; sudoers/auth failures return 502
+  with a sanitized reason. Requires stored SSH credentials; TOFU applies.
 
 All routes except `/api/health` and `/api/auth/*` require `Authorization: Bearer <token>`.
 
@@ -76,6 +80,14 @@ first WebSocket message, connects with the stored credentials, and bridges a
 paramiko `invoke_shell` PTY to the browser. Multiple terminals per server are
 allowed; closing the tab kills the session. Terminal Escape keystrokes go to
 the shell (vim etc.) — close the modal with the ✕ button.
+
+## Reboot action
+
+The row action (⏻ icon) and the detail-panel header ask for confirmation, then
+`POST /api/servers/{id}/reboot`. The backend merges stderr (`2>&1`) so sudo
+errors are visible, feeds the stored password to `sudo -S` via stdin, and
+classifies the outcome: exit 0 or a connection dropped without exit status =
+reboot initiated; sudoers/auth failures map to explicit messages (502).
 
 ## Operations
 
