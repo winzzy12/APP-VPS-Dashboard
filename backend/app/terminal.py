@@ -204,7 +204,8 @@ async def terminal(ws: WebSocket, server_id: int) -> None:
                     continue
                 if obj.get("type") == "input":
                     data = str(obj.get("data", ""))
-                continue  # unknown control message — never forward into the shell
+                else:
+                    continue  # unknown control message — never forward into the shell
             if data:
                 await asyncio.to_thread(channel.sendall, data)
 
