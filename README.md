@@ -1,8 +1,7 @@
 # VPS Dashboard
 
 Login-protected dashboard for managing a VPS fleet. Standalone app on
-**http://127.0.0.1:8081** (loopback only — separate from Hermes Command Center
-on 8080).
+**http://127.0.0.1:8081** 
 
 ## Stack
 
