@@ -1,0 +1,23 @@
+# runtime secrets & data (auto-generated, never commit)
+backend/data.db
+backend/data.db-journal
+backend/data.db-wal
+backend/data.db-shm
+backend/.secret
+backend/.ssh_enc_key
+
+# python
+__pycache__/
+*.pyc
+backend/.venv/
+venv/
+
+# frontend build & deps
+frontend/node_modules/
+frontend/dist/
+
+# editor / os
+.DS_Store
+*.swp
+.idea/
+.vscode/
