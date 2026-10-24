@@ -2,3 +2,4 @@ fastapi>=0.115
 uvicorn>=0.30
 PyJWT>=2.8
 paramiko>=3.4
+websockets>=12

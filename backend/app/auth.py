@@ -51,6 +51,14 @@ def verify_password(password: str, stored: str) -> bool:
 # ------------------------------------------------------------- tokens
 
 
+def decode_token(token: str) -> Optional[dict[str, Any]]:
+    """Decode + verify a JWT; returns the payload or None."""
+    try:
+        return jwt.decode(token, _secret(), algorithms=["HS256"])
+    except jwt.PyJWTError:
+        return None
+
+
 def make_token(user_id: int, username: str) -> str:
     now = int(time.time())
     payload: dict[str, Any] = {
@@ -72,9 +80,8 @@ def current_user(
 
     if creds is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        payload = jwt.decode(creds.credentials, _secret(), algorithms=["HS256"])
-    except jwt.PyJWTError:
+    payload = decode_token(creds.credentials)
+    if payload is None:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     user = db.get_user_by_id(int(payload["sub"]))
     if user is None:

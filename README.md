@@ -20,13 +20,15 @@ backend/
   app/crypto.py  Fernet encryption for stored SSH passwords (.ssh_enc_key)
   app/ssh_client.py  paramiko collection (TOFU host keys)
   app/collector.py   async loop: SSH probe every 15s, in-memory history
+  app/terminal.py    WebSocket SSH terminal (xterm.js protocol)
   .venv/         python 3.12 venv
   data.db        created on first start
   .secret        JWT signing key (generated on first start, chmod 600)
   .ssh_enc_key   Fernet key for SSH passwords (generated, chmod 600)
 frontend/
   src/           React app (components/Login.tsx, components/Dashboard.tsx,
-                 components/ServerDetail.tsx, components/Chart.tsx)
+                 components/ServerDetail.tsx, components/SSHTerminal.tsx,
+                 components/Chart.tsx)
   dist/          production build served by the backend
 ```
 
@@ -46,6 +48,11 @@ frontend/
 - `POST /api/servers/{id}/collect` — collect metrics now, returns updated row
 - `GET  /api/servers/{id}/metrics` — `{interval, history}` (in-memory, ~1 h)
 - `POST /api/servers/{id}/reset-host-key` — clear pinned SSH host key (TOFU)
+- `WS   /api/servers/{id}/terminal` — interactive SSH shell (xterm.js).
+  First message must be `{"type":"auth","token":"<JWT>"}` (token kept out of
+  the URL / access logs); then client sends `{"type":"input","data":...}` and
+  `{"type":"resize","cols":n,"rows":n}`, server streams raw PTY output.
+  Requires stored SSH credentials; TOFU host-key policy applies.
 
 All routes except `/api/health` and `/api/auth/*` require `Authorization: Bearer <token>`.
 
@@ -60,6 +67,15 @@ Security: passwords are Fernet-encrypted at rest (key `backend/.ssh_enc_key`,
 chmod 600) and never logged or returned by the API. Host keys are pinned on
 first connect (TOFU, SHA256 fingerprint in `servers.host_key_fp`); a changed
 key refuses collection until an admin clicks "Reset host key".
+
+## SSH terminal
+
+Row action (>_ icon) or the detail-panel header opens an xterm.js modal wired
+to `WS /api/servers/{id}/terminal`: backend authenticates the JWT via the
+first WebSocket message, connects with the stored credentials, and bridges a
+paramiko `invoke_shell` PTY to the browser. Multiple terminals per server are
+allowed; closing the tab kills the session. Terminal Escape keystrokes go to
+the shell (vim etc.) — close the modal with the ✕ button.
 
 ## Operations
 

@@ -10,6 +10,7 @@ import {
 import { api } from '../api'
 import type { Server, User } from '../types'
 import ServerDetail from './ServerDetail'
+import SSHTerminal from './SSHTerminal'
 import {
   Activity,
   AlertTriangle,
@@ -24,6 +25,7 @@ import {
   Plus,
   RefreshCw,
   Server as ServerIcon,
+  Terminal as TerminalIcon,
   Trash,
   X,
   Zap,
@@ -109,6 +111,7 @@ export default function Dashboard({
   const [editing, setEditing] = useState<Editing | null>(null)
   const [deleting, setDeleting] = useState<Server | null>(null)
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [termId, setTermId] = useState<number | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
   const nextToastId = useRef(1)
 
@@ -189,6 +192,8 @@ export default function Dashboard({
     setServers((list) => list.map((s) => (s.id === updated.id ? updated : s)))
   }, [])
 
+  const closeTerm = useCallback(() => setTermId(null), [])
+
   useEffect(() => {
     void load().then(() => void checkAll())
     const iv = setInterval(() => {
@@ -214,6 +219,8 @@ export default function Dashboard({
 
   const detailServer =
     detailId != null ? (servers.find((s) => s.id === detailId) ?? null) : null
+  const termServer =
+    termId != null ? (servers.find((s) => s.id === termId) ?? null) : null
 
   return (
     <div className="shell">
@@ -391,6 +398,13 @@ export default function Dashboard({
                         </button>
                         <button
                           className="icon-btn"
+                          title="SSH terminal"
+                          onClick={() => setTermId(s.id)}
+                        >
+                          <TerminalIcon size={16} />
+                        </button>
+                        <button
+                          className="icon-btn"
                           title="Check now"
                           onClick={() => void checkOne(s)}
                           disabled={checkingIds.has(s.id)}
@@ -467,9 +481,12 @@ export default function Dashboard({
           server={detailServer}
           onClose={() => setDetailId(null)}
           onUpdated={handleDetailUpdate}
+          onOpenTerminal={() => setTermId(detailServer.id)}
           toast={toast}
         />
       )}
+
+      {termServer && <SSHTerminal server={termServer} onClose={closeTerm} />}
 
       <div className="toasts">
         {toasts.map((t) => (

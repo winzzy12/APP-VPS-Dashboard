@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from . import collector, db
 from .auth import current_user, hash_password, make_token, verify_password
 from .crypto import encrypt_secret
+from .terminal import router as terminal_router
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parents[2]
 DIST_DIR = ROOT_DIR / "frontend" / "dist"
@@ -42,6 +43,8 @@ app = FastAPI(
     openapi_url=None,
     lifespan=lifespan,
 )
+
+app.include_router(terminal_router)
 
 
 # ---------------------------------------------------------------- schemas

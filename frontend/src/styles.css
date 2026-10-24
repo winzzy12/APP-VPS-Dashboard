@@ -1298,6 +1298,39 @@ textarea {
   text-align: center;
 }
 
+/* ================= ssh terminal ================= */
+.modal-xl {
+  max-width: 940px;
+  width: 100%;
+}
+
+.term-modal {
+  height: min(78vh, 700px);
+}
+
+.term-head {
+  padding-bottom: 12px;
+}
+
+.term-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.term-container {
+  flex: 1;
+  min-height: 0;
+  padding: 6px 10px;
+  background: #0b1120;
+  border-radius: 0 0 18px 18px;
+  overflow: hidden;
+}
+
+.term-container .xterm {
+  height: 100%;
+}
+
 @media (max-width: 720px) {
   .info-grid {
     grid-template-columns: repeat(2, 1fr);
